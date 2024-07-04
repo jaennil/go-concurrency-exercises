@@ -1,15 +1,8 @@
-//////////////////////////////////////////////////////////////////////
-//
-// Given is some code to cache key-value pairs from a database into
-// the main memory (to reduce access time). Note that golang's map are
-// not entirely thread safe. Multiple readers are fine, but multiple
-// writers are not. Change the code to make this thread safe.
-//
-
 package main
 
 import (
 	"container/list"
+	"sync"
 	"testing"
 )
 
@@ -32,6 +25,7 @@ type KeyStoreCache struct {
 	cache map[string]*list.Element
 	pages list.List
 	load  func(string) string
+	lock  sync.Mutex
 }
 
 // New creates a new KeyStoreCache
@@ -44,6 +38,8 @@ func New(load KeyStoreCacheLoader) *KeyStoreCache {
 
 // Get gets the key from cache, loads it from the source if needed
 func (k *KeyStoreCache) Get(key string) string {
+	k.lock.Lock()
+	defer k.lock.Unlock()
 	if e, ok := k.cache[key]; ok {
 		k.pages.MoveToFront(e)
 		return e.Value.(page).Value
