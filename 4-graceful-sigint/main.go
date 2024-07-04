@@ -1,22 +1,33 @@
-//////////////////////////////////////////////////////////////////////
-//
-// Given is a mock process which runs indefinitely and blocks the
-// program. Right now the only way to stop the program is to send a
-// SIGINT (Ctrl-C). Killing a process like that is not graceful, so we
-// want to try to gracefully stop the process first.
-//
-// Change the program to do the following:
-//   1. On SIGINT try to gracefully stop the process using
-//          `proc.Stop()`
-//   2. If SIGINT is called again, just kill the program (last resort)
-//
-
 package main
 
-func main() {
-	// Create a process
-	proc := MockProcess{}
+import (
+	"os"
+	"os/signal"
+)
 
-	// Run the process (blocking)
-	proc.Run()
+func main() {
+	proc := MockProcess{}
+	signals := make(chan os.Signal, 1)
+	procStopped := make(chan struct{})
+	procDone := make(chan struct{})
+	go func() {
+		proc.Run()
+		procDone <- struct{}{}
+	}()
+	signal.Notify(signals, os.Interrupt)
+	select {
+	case <-signals:
+		go func() {
+			proc.Stop()
+			procStopped <- struct{}{}
+		}()
+		select {
+		case <-signals:
+			os.Exit(1)
+		case <-procStopped:
+			return
+		}
+	case <-procDone:
+		return
+	}
 }
